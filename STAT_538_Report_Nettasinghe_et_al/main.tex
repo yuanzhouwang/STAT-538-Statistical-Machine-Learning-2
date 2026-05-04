@@ -1,0 +1,433 @@
+\documentclass{article}
+\usepackage{graphicx} % Required for inserting images
+\usepackage[preprint]{neurips_2024}
+\usepackage{amsmath, amssymb, amsfonts}
+
+\title{STAT 538 Reading Report}
+\author{Ghaleb Khalil, Andrew Wang}
+\date{February 2026}
+
+\usepackage[]{natbib}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+
+
+\subsection{Hidden Markov Models}
+
+
+Consider a latent stochastic process $\{X_t\}$ whose states take values in $\mathcal{X}$ and an outcome process $\{Y_t\}$ that depends on $X$ whose states take values in $\mathcal{Y}$. $X_t$ is a Markov process and is unobserved. $Y_t$ takes some value dependent on $X$, but only from the current period \cite{rabiner1989}. That is,
+\[
+P(Y_t \; | \; X_1, \cdots, X_t) = P(Y_t \; | \; X_t) \quad.
+\]
+
+We aim to estimate the state of $X_t$ using the observations $Y_t$. This model can be specified by two matrices, which form the parameters of the model:
+
+\begin{enumerate}
+    \item The transition probability matrix of $\{X_t\}$, which describes the conditional probability distribution of the next state $X_{t+1}$ given the current state $X_t$:
+    \[
+    A_{i,j} = P(X_{t+1} = j \; | \; X_t = i), i,j \in \mathcal{X} \quad,
+    \]
+    \item  The observation probability matrix, which describes the conditional probability distribution of $Y_t$ given the current state of $X_t$:
+    \[
+    B_{i,j} = P(Y_t = j \; | \; X_t = i), i \in \mathcal{X}, j \in \mathcal{Y} \quad.
+    \]
+\end{enumerate}
+
+Thus we can write a particular Hidden Markov Model as $\Lambda = (A, B, \pi)$, where $\pi = P(X_1)$ is additionally the probability distribution of the initial state of $X$.
+
+Traditionally, we deal with one of three problems: an encoding problem, a decoding problem, and a learning problem. The encoding problem consists of estimating the likelihood of a particular sequence of observations given model parameters, that is 
+\[
+P(\{Y_t\} \; | \; \Lambda) \quad.
+\]
+In the decoding problem we already know the observed values of $\{Y_t\}$, and aim to find the most probable sequence of latent states that, given the model parameters, will generate those known observations, that is,
+\[
+\arg \max_{\{X_t\}} P(\{X_t\} \; | \{Y_t\}; \Lambda) \quad.
+\]
+In the learning problem, we are given an observation sequence and the set of possible latent states, and want to learn the parameters of the Hidden Markov Model, or the transition and observation probability matrices. That is, we estimate
+\[
+\arg \max_{\Lambda} P(\{ Y_t \} ; \Lambda)
+\]
+
+We study an extension of the decoding problem, more specifically providing a confidence set for
+the true latent sequence. That is, we want to construct a set of sequences
+\[
+C_{1-\alpha} \subseteq \mathcal{X}^{t}
+\]
+such that
+\[
+P\big(\{X_t\} \in C_{1-\alpha} \mid \{Y_t\}, \Lambda \big) \ge 1 - \alpha .
+\]
+
+\subsection{Conformal Prediction}
+
+To do so, we assume that we have some training data with $T$ periods $\{X_t, Y_t\}_{t=1}^{t=T}$ and a full sequence of $T_1$ observations for application periods $\{Y_t\}_{t=T+1}^{T + T_1}$. We then want to predict a confidence set of the hidden states for the application periods. $\mathcal{C}_{1-\alpha} \subseteq \mathcal{X}^T_1$. If the data-generating process is exchangeable, then we can apply conformal prediction.
+
+\paragraph{Classical conformal prediction.}
+The idea behind conformal prediction is to evaluate how much candidate future states conform to past states. This is quantified by the conformity score, where given past states $Z_1,\dots,Z_n$ and a candidate value $Z_{n+1}=z$, the conformity score is calculated on the full set including the candidate from $1,\cdots,n+1$:
+\[
+S_i(z) = s(Z_i; Z_{1:n}, z), \quad i \in \{1, \cdots, n+1\},
+\]
+for some measurable score function $s$. This yields a conformal $p$-value
+\[
+\hat p(z)
+=
+\frac{1}{n+1}
+\sum_{i=1}^{n+1}
+\mathbf 1\{S_i(z)\ge S_{n+1}(z)\},
+\]
+
+By testing over many possible candidate values, we can identify the coverage level-$1-\alpha$ prediction set
+\[
+\mathcal C_{1-\alpha}
+=
+\{z:\hat p(z)>\alpha\}.
+\]
+
+\paragraph{Conformal Prediction on Hidden-State Sequences.}
+In our setting, the object to be predicted is a \emph{sequence}
+\[
+X_{T+1:T+T_1}
+:=
+(X_{T+1},\dots,X_{T+T_1}).
+\]
+Let $x = (x_{T+1},\dots,x_{T+T_1}) \in \mathcal X^{T_1}$ be a candidate future hidden path.
+We define a conformity score
+\[
+S(x)
+=
+s\!\left(
+\{(X_t,Y_t)\}_{t=1}^{T+T_1}
+\right),
+\]
+where for $t=T+1,\dots,T+T_1$ we set $X_t = x_t$, and compute the score using the full augmented sequence.
+
+However, unlike in the classical setting,
+the augmented sequence
+\[
+\{(X_t,Y_t)\}_{t=1}^{T+T_1}
+\]
+is not exchangeable. Because $(X_t)$ is a Markov chain and $Y_t$ depends on $X_t$, the joint distribution satisfies
+\[
+P(X_{1:T+T_1}=x_{1:T+T_1})
+=
+\pi_{x_1}
+\prod_{t=1}^{T+T_1-1} A_{x_t,x_{t+1}}.
+\]
+so arbitrary permutations of time indices do not preserve probability.
+
+The authors propose a symmetry structure for Hidden Markov Models by exploiting their representation as mixtures of Markov chains, which then satisfies partial exchangeability.
+
+\section{Methodology}
+
+The authors propose a method for constructing uncertainty sets for future hidden-state sequences in a Hidden Markov Model (HMM) that remain valid even with finite data. The main idea is to recover a weaker type of symmetry that is still sufficient for applying conformal prediction. In a Markov chain, the observations are not exchangeable because the order of the sequence matters. However, when the parameters of the Markov chain are unknown, the sequence can be viewed as coming from a mixture of Markov chains. This representation leads to a weaker property called partial exchangeability. Although the entire sequence is not exchangeable, certain blocks within the sequence behave as if they are exchangeable. By permuting these blocks, the algorithm creates valid randomizations, which allows conformal prediction to be applied in the HMM setting.
+
+\subsection{Mixtures of Markov Chains}
+
+A process $(X_1,X_2,\ldots)$ on a finite state space $\mathcal{X}=\{1,2,\ldots,n\}$ is called a \emph{mixture of Markov chains} if there exists a probability measure $\mu$ over $n\times n$ transition matrices $P$ such that for any finite sequence
+$x_{1:T}=(x_1,\ldots,x_T)\in\mathcal{X}^T$,
+\begin{equation}
+\mathbb{P}\{X_t=x_t \ \text{for}\ 1\le t\le T\}
+=
+\int
+\prod_{t=1}^{T-1} P_{x_t x_{t+1}}\,
+\mu(dP).
+\label{eq:mix_markov}
+\end{equation}
+
+The product $\prod_{t=1}^{T-1} P_{x_t x_{t+1}}$ represents the usual likelihood of observing the path $x_{1:T}$ if the transition matrix $P$ were fixed. The integral then averages this likelihood over all possible transition matrices, weighted by the distribution $\mu$. In this interpretation, the sequence is not generated by one fixed Markov chain. Instead, we first draw a transition matrix $P$ from the distribution $\mu$ and then generate the sequence using that matrix.
+
+Diaconis and Freedman showed that mixtures of Markov chains can be characterized using the idea of \emph{partial exchangeability}. A distribution is partially exchangeable if two sequences have the same probability whenever they start at the same initial state ($x_1=x'_1$) and have the same number of transitions between every pair of states $(i,j)\in\mathcal{X}^2$. Formally,
+\begin{equation}
+\sum_{t=1}^{T-1}\mathbf{1}(x_t=i,\,x_{t+1}=j)
+=
+\sum_{t=1}^{T-1}\mathbf{1}(x'_t=i,\,x'_{t+1}=j),
+\qquad \forall i,j\in\mathcal{X},
+\label{eq:trans_counts}
+\end{equation}
+then
+\begin{equation}
+\mathbb{P}\{X_t=x_t \ \text{for}\ 1\le t\le T\}
+=
+\mathbb{P}\{X_t=x'_t \ \text{for}\ 1\le t\le T\}.
+\label{eq:partial_exch}
+\end{equation}
+
+This means that the exact order of the sequence does not matter as long as the initial state and the transition counts remain the same. For example, the sequences $115117$ and $111517$ both start at state $1$ and have the same transitions ($1\to1$ twice, $1\to5$ once, $5\to1$ once, and $1\to7$ once). Therefore, under partial exchangeability, these sequences must have the same probability.
+
+An important assumption is \emph{recurrence}:
+\begin{equation}
+\mathbb{P}\{X_t=i \ \text{for infinitely many } t \mid X_1=i\}=1,\qquad \forall i\in\mathcal{X}.
+\label{eq:recurrence}
+\end{equation}
+
+Recurrence guarantees that the block construction described later is well-defined. Without recurrence, the block-based randomization would not work as we would never have more than one block. Without further argumentation, we posit that this assumption is relatively easy to satisfy.
+
+\subsection{Exchangeability via Block Decompositions}
+
+Even though a Markov chain is not exchangeable, partial exchangeability implies that there is a hidden form of exchangeability at the level of blocks. To demonstrate, first consider a fixed state $i\in\mathcal{X}$. An \emph{$i$-block} is defined as a contiguous segment of the sequence that starts with state $i$ and contains no other occurrence of $i$ afterwards. 
+
+For example, the sequence $7521781663513421$ can be divided into $1$-blocks as
+\[
+752 \mid 178 \mid 16635 \mid 1342 \mid 1.
+\]
+
+Permuting entire $i$-blocks keeps the initial state and all transition counts unchanged. Because of partial exchangeability, this means that the probability of the sequence also remains unchanged. This illustrates the difference between \emph{permutation} and \emph{exchangeability}. A permutation simply rearranges the elements of a sequence, while exchangeability means that the probability of the sequence being generated remains the same after certain permutations. Full exchangeability requires invariance under all permutations, whereas partial exchangeability only requires invariance under specific structure-preserving permutations such as block permutations.
+
+\subsection{From HMMs to Markov Chains on Augmented States}
+
+To apply the block randomization idea to Hidden Markov Models, the paper uses a standard augmentation result.
+
+\paragraph{Lemma (Augmented Markov Property).}
+If $(X_t)$ is a Markov chain and $(Y_t)$ are observations that depend only on the current state $X_t$ (and not on the past), then the combined process $(X_t,Y_t)$ is also a Markov chain.
+
+In an HMM, the transition matrix $P$ and emission matrix $B$ are usually unknown. The paper treats these parameters as random variables drawn from an unknown distribution $\mu$. As a result, the augmented process $(X_t,Y_t)$ can be viewed as a mixture of Markov chains rather than a single fixed chain. By the Diaconis--Freedman characterization, this implies that the augmented process satisfies partial exchangeability. Consequently, exchangeability appears at the level of specially defined \emph{$(i,j)$-blocks} in the augmented state space.
+
+\subsection{Algorithm 1: Conformal Prediction for Hidden-State Sequences}
+
+The goal is to construct a confidence set for the future hidden state sequence
+\[
+x=(x_{T+1},\ldots,x_{T+T_1})\in\mathcal{X}^{T_1},
+\]
+given calibration data $\{(X_t,Y_t)\}_{t=1}^T$, future observations $\{Y_t\}_{t=T+1}^{T+T_1}$, and a miscoverage level $\alpha\in(0,1)$.
+
+\paragraph{Step 1: Hypothesize a future hidden path.}
+For each candidate sequence $x\in\mathcal{X}^{T_1}$, we assume
+\[
+X_{T+1}=x_{T+1},\ldots,X_{T+T_1}=x_{T+T_1}.
+\]
+This creates a complete augmented sequence.
+
+\paragraph{Step 2: Estimate HMM parameters.}
+Using the augmented sequence $\{(X_t,Y_t)\}_{t=1}^{T+T_1}$, the transition matrix $P$ and emission matrix $B$ are estimated using frequency counts:
+\begin{equation}
+\widehat{P}_{ij}
+=
+\frac{\sum_{t=1}^{T+T_1-1}\mathbf{1}(X_t=i \wedge X_{t+1}=j)}
+{\sum_{t=1}^{T+T_1-1}\mathbf{1}(X_t=i)},
+\qquad
+\widehat{B}_{ij}
+=
+\frac{\sum_{t=1}^{T+T_1}\mathbf{1}(X_t=i \wedge Y_t=j)}
+{\sum_{t=1}^{T+T_1}\mathbf{1}(X_t=i)}.
+\label{eq:phat_bhat}
+\end{equation}
+
+This approach avoids performing a full Bayesian integration while still preserving the distribution-free guarantees of conformal prediction.
+
+\paragraph{Step 3: Identify $(i,j)$-blocks.}
+The algorithm fixes the final pair $(X_{T+T_1},Y_{T+T_1})=(i,j)$ and divides the augmented sequence into $(i,j)$-blocks. Each block begins with $(i,j)$ and contains no additional occurrence of this pair. Let $d$ denote the number of such blocks.
+
+\paragraph{Step 4: Block permutations and conformity scores.}
+Let $\Pi$ be a permutation group acting on the $d$ blocks. For each permutation $\pi\in\Pi$, the blocks are rearranged to create a randomized sequence
+$\{(X_t^{(\pi)},Y_t^{(\pi)})\}_{t=1}^{T+T_1}$.
+The conformity score is then defined as
+\begin{equation}
+S(\pi)
+=
+1-\frac{1}{T_1}\sum_{k=1}^{T_1}
+\mathbb{P}_{\widehat{P},\widehat{B}}
+\!\left(
+X_{T+k}^{(\pi)} \,\middle|\,
+X_T^{(\pi)};\,
+Y_{T+1}^{(\pi)},\ldots,Y_{T+k}^{(\pi)}
+\right).
+\label{eq:conformity_score}
+\end{equation}
+
+These probabilities are computed using the standard HMM filtering recursion. If the candidate hidden path matches the observations well, the probabilities will be high and the conformity score will be small.
+
+\paragraph{Step 5: Rank the unpermuted sequence.}
+The conformal rank is defined as
+\begin{equation}
+\widehat{q}(x)
+=
+\frac{1}{|\Pi|}\sum_{\pi\in\Pi}\mathbf{1}\!\left(S(\pi)\ge S(I)\right),
+\label{eq:qhat}
+\end{equation}
+where $I$ is the identity permutation. The value $\widehat{q}(x)$ represents the proportion of permutations that produce conformity scores at least as large as the original sequence.
+
+\paragraph{Step 6: Construct the confidence set.}
+The final confidence set is defined as
+\begin{equation}
+C_{1-\alpha}
+=
+\left\{
+x\in\mathcal{X}^{T_1}:\ \widehat{q}(x)>\alpha
+\right\}.
+\label{eq:confidence_set}
+\end{equation}
+
+Candidate sequences with $\widehat{q}(x)\le\alpha$ are considered implausible and are therefore excluded.
+
+\subsection{Validity and Practical Considerations}
+
+If the augmented process $\{(X_t,Y_t)\}_{t=1}^{T+T_1}$ is a mixture of Markov chains, then the $(i,j)$-blocks are exchangeable. As a result, the rank of the original conformity score among the set $\{S(\pi):\pi\in\widetilde{\Pi}\}$ is approximately uniform. This leads to the finite-sample coverage guarantee
+\begin{equation}
+1-\alpha
+\le
+\mathbb{P}\!\left(\{X_t\}_{t=T+1}^{T+T_1}\in C_{1-\alpha}\right)
+\le
+1-\alpha+\frac{1}{|\widetilde{\Pi}|}.
+\label{eq:validity}
+\end{equation}
+
+From a computational perspective, evaluating each conformity score using HMM filtering requires $O(|\mathcal{X}|^2)$ operations per time step. Therefore, the total computational cost per candidate sequence is
+\[
+O(|\Pi|\,T_1\,|\mathcal{X}|^2).
+\]
+
+The paper notes that using all block permutations can be computationally expensive. In practice, restricting the permutations to a smaller representative subgroup that affects only the last $T_1+1$ elements may still provide good results. The authors also mention that other conformity scores based on smoothing probabilities or joint likelihoods could produce tighter confidence sets, although this would increase the computational cost. Finally, Algorithm~1 can be used as a calibration layer for any pre-trained predictor: if estimates $(\widehat{P},\widehat{B})$ are already available, Step 2 can be skipped while still preserving the conformal validity guarantee.
+
+
+\section{Results}
+
+The performance of Algorithm~1 was examined by fixing the target confidence level at $80\%$. 
+This was done using $500$ repetitions of Monte Carlo simulations. This was based on a 
+two-state, two-observation hidden Markov model with systematic variation of parameters 
+$p$, $b$, $T$, and $T_1$.
+
+Additionally, it should be noted that when implemented on different real-world data sets, 
+including the S\&P~500 index, it was found that the proposed method achieved coverage values 
+close to the target confidence level of $80\%$. This was particularly true for different 
+parameter settings. For example, it was found that the proposed algorithm performed well 
+in the IID/exchangeable regime with $p = 0.5$ and also in the Markovian regime with 
+$p \ne 0.5$. This is particularly important because, unlike conformal prediction, which 
+assumes exchangeability, the proposed method works under data dependence. 
+
+Also, in the strongly Markovian regime with $p = 0.9$ and $p = 0.1$, it was found that 
+smaller prediction sets were achieved while keeping the coverage at the desired level, 
+thus implying that data dependence might be helpful in reducing the size of the prediction 
+sets due to reduced uncertainty. In addition, better data and more data (larger $b$ and $T$) 
+reduce the prediction set by allowing the algorithm to be more selective while keeping the 
+same coverage guarantee. 
+
+Finally, it should be noted that there exists a low information regime with specific 
+parameter settings that result in reduced coverage and increased estimation noise: 
+$T_1 = 1$, $p = 0.1$, and $b = 0.5$.
+
+\section{Limitations}
+
+The main limitation associated with this proposed approach is related to its computational cost. 
+In this regard, it is important to note that Algorithm~1 requires the computation of conformity 
+scores over a large number of permutations of the $(i,j)$-blocks. As discussed in Section~3.4 
+of this manuscript, it is important to note that the computation of conformity scores involves 
+the application of an HMM filter with a time complexity of $O(|X|^2)$ per step. In this case, 
+it is important to note that this process has to be performed over a large number of permutations; 
+hence, the overall process has a time complexity of $O(|\Pi|\, T_1\, |X|^2)$.
+
+\section{Critique and Original Insight}
+
+The main limitation to this paper is the computational cost. The authors do not present the computational complexity accurately: they provide the complexity as $O(||\Pi| T_1\mathcal{X}|^2$), but do not specify the rate of $|\Pi|$. As we demonstrate, this component of complexity makes the algorithm as it currently exists, impractical for most applications.
+
+\subsection*{Computational Cost}
+
+The main computational bottleneck of Algorithm 1 arises in Step 4, where conformity scores are evaluated for each permutation. The computational complexity per permutation is driven by matrix-vector operations.
+
+Let $n = |\mathcal{X}|$ denote the number of hidden states.
+
+From Appendix A, the recursive update can be written as
+\[
+\rho_{t+k} =
+\frac{\widehat{B}_{y_{t+k}} \widehat{P}^T \rho_{t+k-1}}
+{\mathbf{1}^T \widehat{B}_{y_{t+k}} \widehat{P}^T \rho_{t+k-1}}.
+\]
+
+Here:
+\begin{itemize}
+    \item $\widehat{B}_{y_{t+k}}$ is a diagonal matrix,
+    \item $\widehat{P} \in \mathbb{R}^{n \times n}$ is the transition matrix,
+    \item $\rho_{t+k-1} \in \mathbb{R}^n$ is a probability vector.
+\end{itemize}
+
+Computing the matrix-vector product
+\[
+v = \widehat{P}^T \rho
+\]
+requires, for each of the $n$ entries,
+\[
+v_i = \sum_{j=1}^n \widehat{P}_{ji} \rho_j,
+\]
+which involves $n$ multiplications and $n-1$ additions per entry. Since there are $n$ entries, the total cost is
+\[
+\mathcal{O}(n^2) = \mathcal{O}(|\mathcal{X}|^2).
+\]
+
+Multiplication by the diagonal matrix $\widehat{B}$ is $\mathcal{O}(n)$, and normalization by $\mathbf{1}^T$ is also $\mathcal{O}(n)$, so the dominant cost remains $\mathcal{O}(n^2)$.
+
+Since the update is performed for $T_1$ prediction steps, the cost per permutation $\pi$ is
+\[
+\mathcal{O}(T_1 n^2).
+\]
+
+Over all permutations $\Pi$, the total computational cost becomes
+\[
+\mathcal{O}(|\Pi| T_1 n^2)
+=
+\mathcal{O}(|\Pi| T_1 |\mathcal{X}|^2).
+\]
+
+\subsection*{Growth of the Permutation Set}
+
+From the paper (page 7), the size of the permutation group is
+\[
+|\Pi| = \frac{d!}{(d - T_1 - 1)!}.
+\]
+
+Expanding,
+\[
+|\Pi| = d(d-1)(d-2)\cdots(d-T_1),
+\]
+
+\[
+|\Pi| = \prod_{j=0}^{T_1} (d - j)
+= d^{T_1+1} \prod_{j=0}^{T_1} \left(1 - \frac{j}{d}\right).
+\]
+
+As the number of blocks $d \to \infty$ with fixed $T_1$, we have
+\[
+\prod_{j=0}^{T_1} \left(1 - \frac{j}{d}\right) \to 1,
+\]
+so asymptotically
+\[
+|\Pi| \approx d^{T_1+1}.
+\]
+
+Therefore, the overall computational complexity becomes
+\[
+\mathcal{O}(d^{T_1+1} T_1 |\mathcal{X}|^2).
+\]
+
+\subsection*{Practical Implications}
+
+The practical implication of the computational complexity analysis is that when both $T_1$ and $d$ are large, the algorithm becomes computationally infeasible. The parameter $T_1$ represents the length of the sequence to be predicted. As $T_1$ increases, the number of possible candidate sequences grows rapidly, leading to a substantial increase in computational cost. This creates a limitation on the practical applicability of the algorithm.
+
+In many real-world settings, such as high-frequency trading, the prediction horizon $T_1$ is typically small. In practice, predictions are often made one step ahead or only a few steps ahead. Therefore, $T_1$ does not necessarily grow with the size of the dataset, which partially mitigates the computational burden.
+
+On the other hand, $d$, which denotes the number of $(i,j)$-blocks, increases with both the number of training periods $T$ and the number of hidden states in the model. As a result, the algorithm becomes computationally expensive when either the training sample size or the number of hidden states grows. This implies that the method is effectively limited to models with a relatively small number of hidden states and moderate training sample sizes.
+
+In our final project, we aim to address this limitation in two ways. First, we explore whether the number of hidden states can be reduced using a clustering approach such as $k$-means. Second, we investigate whether the conformal prediction procedure can be approximated by sampling permutations of random blocks rather than evaluating conformity scores over all possible sequences.
+
+\bibliography{ExportedItems}
+
+\begin{thebibliography}{9}
+
+\bibitem{nettasinghe2023}
+B. Nettasinghe, S. Chatterjee, R. Tipireddy, and M. Halappanavar.
+Extending conformal prediction to hidden Markov models with exact validity via
+de Finetti’s theorem for Markov chains.
+In \textit{Proceedings of the 40th International Conference on Machine Learning (ICML)},
+PMLR 202, 2023.
+
+\bibitem{rabiner1989}
+L. R. Rabiner.
+A tutorial on hidden Markov models and selected applications in speech recognition.
+\textit{Proceedings of the IEEE}, 77(2):257--286, 1989.
+
+\end{thebibliography}
+
+\end{document}
